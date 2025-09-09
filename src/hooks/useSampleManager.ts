@@ -300,6 +300,276 @@ export function useSampleManager() {
     });
   }, [addLog]);
 
+  const renameSample = useCallback((sampleId: string, newCode: string) => {
+    setState(prev => {
+      const newShelves = prev.shelves.map(shelf => ({
+        ...shelf,
+        boxes: shelf.boxes.map(box => ({
+          ...box,
+          samples: box.samples.map(sample => 
+            sample.id === sampleId 
+              ? { ...sample, code: newCode }
+              : sample
+          )
+        }))
+      }));
+
+      const sample = prev.shelves.flatMap(s => s.boxes.flatMap(b => b.samples)).find(s => s.id === sampleId);
+      if (sample) {
+        addLog('CAMPIONE_RINOMINATO', `Campione rinominato da ${sample.code} a ${newCode}`, 'sample', newCode);
+        toast.success(`Campione rinominato: ${newCode}`);
+      }
+
+      return { ...prev, shelves: newShelves };
+    });
+  }, [addLog]);
+
+  const renameBox = useCallback((boxId: string, newCode: string) => {
+    setState(prev => {
+      const newShelves = prev.shelves.map(shelf => ({
+        ...shelf,
+        boxes: shelf.boxes.map(box => 
+          box.id === boxId 
+            ? { ...box, code: newCode }
+            : box
+        )
+      }));
+
+      const box = prev.shelves.flatMap(s => s.boxes).find(b => b.id === boxId);
+      if (box) {
+        addLog('CASSETTA_RINOMINATA', `Cassetta rinominata da ${box.code} a ${newCode}`, 'box', newCode);
+        toast.success(`Cassetta rinominata: ${newCode}`);
+      }
+
+      return { ...prev, shelves: newShelves };
+    });
+  }, [addLog]);
+
+  const renameShelf = useCallback((shelfId: string, newCode: string) => {
+    setState(prev => {
+      const newShelves = prev.shelves.map(shelf => 
+        shelf.id === shelfId 
+          ? { ...shelf, code: newCode }
+          : shelf
+      );
+
+      const shelf = prev.shelves.find(s => s.id === shelfId);
+      if (shelf) {
+        addLog('SCAFFALE_RINOMINATO', `Scaffale rinominato da ${shelf.code} a ${newCode}`, 'shelf', newCode);
+        toast.success(`Scaffale rinominato: ${newCode}`);
+      }
+
+      return { ...prev, shelves: newShelves };
+    });
+  }, [addLog]);
+
+  const moveSample = useCallback((sampleId: string, targetBoxId: string) => {
+    setState(prev => {
+      let movedSample: Sample | null = null;
+      let sourceBox: Box | null = null;
+      let sourceShelf: Shelf | null = null;
+      
+      // Remove sample from source
+      const newShelves = prev.shelves.map(shelf => ({
+        ...shelf,
+        boxes: shelf.boxes.map(box => {
+          const filteredSamples = box.samples.filter(sample => {
+            if (sample.id === sampleId) {
+              movedSample = sample;
+              sourceBox = box;
+              sourceShelf = shelf;
+              return false;
+            }
+            return true;
+          });
+          return { ...box, samples: filteredSamples };
+        })
+      }));
+
+      // Add sample to target box
+      if (movedSample) {
+        const targetShelf = newShelves.find(shelf => shelf.boxes.some(box => box.id === targetBoxId));
+        const targetBox = targetShelf?.boxes.find(box => box.id === targetBoxId);
+        
+        if (targetBox && targetShelf) {
+          targetBox.samples.push({ ...movedSample, boxId: targetBoxId, shelfId: targetShelf.id });
+          
+          addLog('CAMPIONE_SPOSTATO', 
+            `Campione spostato: ${movedSample.code} da cassetta ${sourceBox?.code} a cassetta ${targetBox.code}`,
+            'sample', 
+            movedSample.code
+          );
+          toast.success(`Campione spostato nella cassetta ${targetBox.code}`);
+        }
+      }
+
+      return { ...prev, shelves: newShelves };
+    });
+  }, [addLog]);
+
+  const moveBox = useCallback((boxId: string, targetShelfId: string) => {
+    setState(prev => {
+      let movedBox: Box | null = null;
+      let sourceShelf: Shelf | null = null;
+      
+      // Remove box from source shelf
+      const newShelves = prev.shelves.map(shelf => {
+        const filteredBoxes = shelf.boxes.filter(box => {
+          if (box.id === boxId) {
+            movedBox = box;
+            sourceShelf = shelf;
+            return false;
+          }
+          return true;
+        });
+        return { ...shelf, boxes: filteredBoxes };
+      });
+
+      // Add box to target shelf
+      if (movedBox) {
+        const targetShelf = newShelves.find(shelf => shelf.id === targetShelfId);
+        if (targetShelf) {
+          targetShelf.boxes.push({ ...movedBox, shelfId: targetShelfId });
+          
+          addLog('CASSETTA_SPOSTATA', 
+            `Cassetta spostata: ${movedBox.code} da scaffale ${sourceShelf?.code} a scaffale ${targetShelf.code}`,
+            'box', 
+            movedBox.code
+          );
+          toast.success(`Cassetta spostata nello scaffale ${targetShelf.code}`);
+        }
+      }
+
+      return { ...prev, shelves: newShelves };
+    });
+  }, [addLog]);
+
+  const bulkDispose = useCallback((selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => {
+    setState(prev => {
+      const newState = { ...prev };
+      
+      // Dispose samples
+      selectedItems.samples.forEach(sampleId => {
+        newState.shelves.forEach(shelf => {
+          shelf.boxes.forEach(box => {
+            const sample = box.samples.find(s => s.id === sampleId);
+            if (sample) {
+              sample.status = 'disposed';
+              sample.disposedAt = new Date();
+              addLog('CAMPIONE_SMALTITO', 
+                `Campione smaltito: ${sample.code} da cassetta ${box.code} di scaffale ${shelf.code}`,
+                'sample', 
+                sample.code
+              );
+            }
+          });
+        });
+      });
+
+      // Dispose boxes
+      selectedItems.boxes.forEach(boxId => {
+        newState.shelves.forEach(shelf => {
+          const box = shelf.boxes.find(b => b.id === boxId);
+          if (box) {
+            box.status = 'disposed';
+            box.samples.forEach(sample => {
+              sample.status = 'disposed';
+              sample.disposedAt = new Date();
+            });
+            addLog('CASSETTA_SMALTITA', 
+              `Cassetta smaltita: ${box.code} da scaffale ${shelf.code}`,
+              'box', 
+              box.code
+            );
+          }
+        });
+      });
+
+      // Dispose shelves
+      selectedItems.shelves.forEach(shelfId => {
+        const shelf = newState.shelves.find(s => s.id === shelfId);
+        if (shelf) {
+          shelf.status = 'disposed';
+          shelf.boxes.forEach(box => {
+            box.status = 'disposed';
+            box.samples.forEach(sample => {
+              sample.status = 'disposed';
+              sample.disposedAt = new Date();
+            });
+          });
+          addLog('SCAFFALE_SMALTITO', `Scaffale smaltito: ${shelf.code}`, 'shelf', shelf.code);
+        }
+      });
+
+      return newState;
+    });
+
+    toast.success('Elementi smaltiti con successo');
+  }, [addLog]);
+
+  const bulkDelete = useCallback((selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => {
+    setState(prev => {
+      const newState = { ...prev };
+      
+      // Delete samples
+      selectedItems.samples.forEach(sampleId => {
+        newState.shelves.forEach(shelf => {
+          shelf.boxes.forEach(box => {
+            const sample = box.samples.find(s => s.id === sampleId);
+            if (sample) {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
+              addLog('CAMPIONE_ELIMINATO', 
+                `Campione eliminato: ${sample.code} da cassetta ${box.code} di scaffale ${shelf.code}`,
+                'sample', 
+                sample.code
+              );
+            }
+          });
+        });
+      });
+
+      // Delete boxes
+      selectedItems.boxes.forEach(boxId => {
+        newState.shelves.forEach(shelf => {
+          const box = shelf.boxes.find(b => b.id === boxId);
+          if (box) {
+            box.status = 'deleted';
+            box.samples.forEach(sample => {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
+            });
+            addLog('CASSETTA_ELIMINATA', 
+              `Cassetta eliminata: ${box.code} da scaffale ${shelf.code}`,
+              'box', 
+              box.code
+            );
+          }
+        });
+      });
+
+      // Delete shelves
+      selectedItems.shelves.forEach(shelfId => {
+        const shelf = newState.shelves.find(s => s.id === shelfId);
+        if (shelf) {
+          shelf.status = 'deleted';
+          shelf.boxes.forEach(box => {
+            box.status = 'deleted';
+            box.samples.forEach(sample => {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
+            });
+          });
+          addLog('SCAFFALE_ELIMINATO', `Scaffale eliminato: ${shelf.code}`, 'shelf', shelf.code);
+        }
+      });
+
+      return newState;
+    });
+
+    toast.success('Elementi eliminati con successo');
+  }, [addLog]);
+
   return {
     state,
     login,
@@ -308,6 +578,13 @@ export function useSampleManager() {
     createShelf,
     createBox,
     createSample,
+    renameSample,
+    renameBox,
+    renameShelf,
+    moveSample,
+    moveBox,
+    bulkDispose,
+    bulkDelete,
     addLog,
     setState
   };

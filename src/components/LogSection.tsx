@@ -1,13 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { LogEntry } from '@/types/sample';
-import { FileText, Clock, User, Activity } from 'lucide-react';
+import { FileText, Clock, User, Activity, Printer } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface LogSectionProps {
   logs: LogEntry[];
+  addLog: (action: string, details: string, itemType: 'shelf' | 'box' | 'sample', itemCode: string) => void;
 }
 
-export function LogSection({ logs }: LogSectionProps) {
+export function LogSection({ logs, addLog }: LogSectionProps) {
   const getActionColor = (action: string) => {
     if (action.includes('LOGIN') || action.includes('LOGOUT')) return 'bg-primary text-primary-foreground';
     if (action.includes('CREATO') || action.includes('ARCHIVIATO')) return 'bg-success text-success-foreground';
@@ -37,15 +40,51 @@ export function LogSection({ logs }: LogSectionProps) {
     }).format(new Date(timestamp));
   };
 
+  const printLog = () => {
+    let logContent = 'LOG ATTIVITÀ SISTEMA GESTIONE CAMPIONI\n';
+    logContent += '======================================\n\n';
+    logContent += `Stampato il: ${new Date().toLocaleString('it-IT')}\n`;
+    logContent += `Totale registrazioni: ${logs.length}\n\n`;
+
+    logs.forEach((log, index) => {
+      logContent += `${index + 1}. ${log.action}\n`;
+      logContent += `   Data/Ora: ${formatTimestamp(log.timestamp)}\n`;
+      logContent += `   Operatore: ${log.operator}\n`;
+      logContent += `   Tipo: ${log.itemType}\n`;
+      logContent += `   Codice: ${log.itemCode}\n`;
+      logContent += `   Dettagli: ${log.details}\n\n`;
+    });
+
+    // Create and download log
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `log_attivita_${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    addLog('LOG_STAMPATO', 'Log delle attività stampato e scaricato', 'sample', '');
+    toast.success('Log scaricato con successo');
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
-          Log delle Attività
-        </CardTitle>
-        <div className="text-sm text-muted-foreground">
-          Totale azioni registrate: {logs.length}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Log delle Attività
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">
+              Totale azioni registrate: {logs.length}
+            </div>
+          </div>
+          <Button onClick={printLog} variant="outline" size="sm" className="gap-2">
+            <Printer className="w-4 h-4" />
+            Stampa Log
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

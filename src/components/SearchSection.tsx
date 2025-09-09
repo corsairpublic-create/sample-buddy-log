@@ -4,18 +4,31 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AppState, Sample, Box, Shelf } from '@/types/sample';
-import { Search, MapPin, Trash2, Archive, Edit, FileText, Move } from 'lucide-react';
+import { Search, MapPin, Trash2, Archive, Edit, FileText, Move, Printer } from 'lucide-react';
+import { BulkActionsDialog } from '@/components/BulkActionsDialog';
 import { toast } from 'sonner';
 
 interface SearchSectionProps {
   state: AppState;
   onStateChange: (updater: (prev: AppState) => AppState) => void;
   addLog: (action: string, details: string, itemType: 'shelf' | 'box' | 'sample', itemCode: string) => void;
+  onRename: (type: 'shelf' | 'box' | 'sample', id: string, newCode: string) => void;
+  onMove: (type: 'box' | 'sample', id: string, targetId: string) => void;
+  onBulkDispose: (selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => void;
+  onBulkDelete: (selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => void;
 }
 
-export function SearchSection({ state, onStateChange, addLog }: SearchSectionProps) {
+export function SearchSection({ 
+  state, 
+  onStateChange, 
+  addLog,
+  onRename,
+  onMove,
+  onBulkDispose,
+  onBulkDelete
+}: SearchSectionProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItems, setSelectedItems] = useState<{
     shelves: string[];
@@ -30,6 +43,8 @@ export function SearchSection({ state, onStateChange, addLog }: SearchSectionPro
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [password, setPassword] = useState('');
   const [pendingAction, setPendingAction] = useState<() => void>(() => {});
+  const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'rename' | 'move' | null>(null);
 
   // Search logic
   const searchResults = {
@@ -71,70 +86,88 @@ export function SearchSection({ state, onStateChange, addLog }: SearchSectionPro
   };
 
   const deleteItems = () => {
-    onStateChange(prev => {
-      const newState = { ...prev };
-      
-      // Delete samples
-      selectedItems.samples.forEach(sampleId => {
-        const sample = findSampleById(newState, sampleId);
-        if (sample) {
-          sample.sample.status = 'deleted';
-          sample.sample.deletedAt = new Date();
-          addLog('CAMPIONE_ELIMINATO', 
-            `Campione eliminato: ${sample.sample.code} da cassetta ${sample.box.code} di scaffale ${sample.shelf.code}`,
-            'sample', 
-            sample.sample.code
-          );
-        }
-      });
-
-      // Delete boxes
-      selectedItems.boxes.forEach(boxId => {
-        const result = findBoxById(newState, boxId);
-        if (result) {
-          result.box.status = 'deleted';
-          result.box.samples.forEach(sample => {
-            sample.status = 'deleted';
-            sample.deletedAt = new Date();
-          });
-          addLog('CASSETTA_ELIMINATA', 
-            `Cassetta eliminata: ${result.box.code} da scaffale ${result.shelf.code}`,
-            'box', 
-            result.box.code
-          );
-        }
-      });
-
-      return newState;
-    });
-
+    onBulkDelete(selectedItems);
     setSelectedItems({ shelves: [], boxes: [], samples: [] });
-    toast.success('Elementi eliminati con successo');
   };
 
   const disposeItems = () => {
-    onStateChange(prev => {
-      const newState = { ...prev };
-      
-      // Dispose samples
-      selectedItems.samples.forEach(sampleId => {
-        const sample = findSampleById(newState, sampleId);
-        if (sample) {
-          sample.sample.status = 'disposed';
-          sample.sample.disposedAt = new Date();
-          addLog('CAMPIONE_SMALTITO', 
-            `Campione smaltito: ${sample.sample.code} da cassetta ${sample.box.code} di scaffale ${sample.shelf.code}`,
-            'sample', 
-            sample.sample.code
-          );
-        }
-      });
+    onBulkDispose(selectedItems);
+    setSelectedItems({ shelves: [], boxes: [], samples: [] });
+  };
 
-      return newState;
+  const generateReport = () => {
+    let reportContent = 'REPORT CAMPIONI\n';
+    reportContent += '================\n\n';
+    reportContent += `Generato il: ${new Date().toLocaleString('it-IT')}\n\n`;
+
+    // Report for selected shelves
+    selectedItems.shelves.forEach(shelfId => {
+      const shelf = state.shelves.find(s => s.id === shelfId);
+      if (shelf) {
+        reportContent += `SCAFFALE: ${shelf.code}\n`;
+        reportContent += `Stato: ${shelf.status}\n`;
+        reportContent += `Cassette: ${shelf.boxes.length}\n`;
+        reportContent += `Campioni totali: ${shelf.boxes.reduce((acc, box) => acc + box.samples.length, 0)}\n\n`;
+        
+        shelf.boxes.forEach(box => {
+          reportContent += `  CASSETTA: ${box.code}\n`;
+          reportContent += `  Stato: ${box.status}\n`;
+          reportContent += `  Campioni: ${box.samples.length}\n`;
+          box.samples.forEach(sample => {
+            reportContent += `    - ${sample.code} (${sample.type}) - ${sample.status}\n`;
+          });
+          reportContent += '\n';
+        });
+      }
     });
 
-    setSelectedItems({ shelves: [], boxes: [], samples: [] });
-    toast.success('Elementi smaltiti con successo');
+    // Report for selected boxes
+    selectedItems.boxes.forEach(boxId => {
+      const shelf = state.shelves.find(s => s.boxes.some(b => b.id === boxId));
+      const box = shelf?.boxes.find(b => b.id === boxId);
+      if (box && shelf) {
+        reportContent += `CASSETTA: ${box.code}\n`;
+        reportContent += `Scaffale: ${shelf.code}\n`;
+        reportContent += `Stato: ${box.status}\n`;
+        reportContent += `Campioni: ${box.samples.length}\n`;
+        box.samples.forEach(sample => {
+          reportContent += `  - ${sample.code} (${sample.type}) - ${sample.status}\n`;
+        });
+        reportContent += '\n';
+      }
+    });
+
+    // Report for selected samples
+    selectedItems.samples.forEach(sampleId => {
+      const sampleInfo = findSampleById(state, sampleId);
+      if (sampleInfo) {
+        reportContent += `CAMPIONE: ${sampleInfo.sample.code}\n`;
+        reportContent += `Tipo: ${sampleInfo.sample.type}\n`;
+        reportContent += `Stato: ${sampleInfo.sample.status}\n`;
+        reportContent += `Scaffale: ${sampleInfo.shelf.code}\n`;
+        reportContent += `Cassetta: ${sampleInfo.box.code}\n`;
+        reportContent += `Creato: ${sampleInfo.sample.createdAt.toLocaleString('it-IT')}\n`;
+        if (sampleInfo.sample.disposedAt) {
+          reportContent += `Smaltito: ${sampleInfo.sample.disposedAt.toLocaleString('it-IT')}\n`;
+        }
+        if (sampleInfo.sample.deletedAt) {
+          reportContent += `Eliminato: ${sampleInfo.sample.deletedAt.toLocaleString('it-IT')}\n`;
+        }
+        reportContent += '\n';
+      }
+    });
+
+    // Create and download report
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `report_campioni_${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    addLog('REPORT_GENERATO', `Report generato per ${selectedItems.shelves.length + selectedItems.boxes.length + selectedItems.samples.length} elementi`, 'sample', '');
+    toast.success('Report generato e scaricato');
   };
 
   const findSampleById = (state: AppState, sampleId: string) => {
@@ -221,6 +254,39 @@ export function SearchSection({ state, onStateChange, addLog }: SearchSectionPro
                 <Trash2 className="w-4 h-4" />
                 Elimina Selezionati
               </Button>
+              <Button 
+                onClick={() => {
+                  setBulkAction('rename');
+                  setShowBulkDialog(true);
+                }}
+                variant="outline" 
+                className="gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Rinomina
+              </Button>
+              <Button 
+                onClick={() => {
+                  setBulkAction('move');
+                  setShowBulkDialog(true);
+                }}
+                variant="outline" 
+                className="gap-2"
+              >
+                <Move className="w-4 h-4" />
+                Sposta
+              </Button>
+              <Button 
+                onClick={generateReport}
+                variant="outline" 
+                className="gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Stampa Report
+              </Button>
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              Selezionati: {selectedItems.shelves.length} scaffali, {selectedItems.boxes.length} cassette, {selectedItems.samples.length} campioni
             </div>
           </CardContent>
         </Card>
@@ -425,6 +491,20 @@ export function SearchSection({ state, onStateChange, addLog }: SearchSectionPro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Actions Dialog */}
+      <BulkActionsDialog
+        open={showBulkDialog}
+        onClose={() => {
+          setShowBulkDialog(false);
+          setBulkAction(null);
+        }}
+        action={bulkAction}
+        selectedItems={selectedItems}
+        state={state}
+        onRename={onRename}
+        onMove={onMove}
+      />
     </div>
   );
 }

@@ -19,7 +19,22 @@ interface MainInterfaceProps {
 }
 
 export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
-  const { state, scanCode, createShelf, createBox, createSample, addLog, setState } = useSampleManager();
+  const {
+    state,
+    scanCode,
+    createShelf,
+    createBox,
+    createSample,
+    renameSample,
+    renameBox,
+    renameShelf,
+    moveSample,
+    moveBox,
+    bulkDispose,
+    bulkDelete,
+    addLog,
+    setState
+  } = useSampleManager();
   const [archivingState, setArchivingState] = useState<{
     currentShelf?: string;
     currentBox?: string;
@@ -132,11 +147,22 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
                 state={state} 
                 onStateChange={setState}
                 addLog={addLog}
+                onRename={(type, id, newCode) => {
+                  if (type === 'sample') renameSample(id, newCode);
+                  else if (type === 'box') renameBox(id, newCode);
+                  else if (type === 'shelf') renameShelf(id, newCode);
+                }}
+                onMove={(type, id, targetId) => {
+                  if (type === 'sample') moveSample(id, targetId);
+                  else if (type === 'box') moveBox(id, targetId);
+                }}
+                onBulkDispose={bulkDispose}
+                onBulkDelete={bulkDelete}
               />
             </TabsContent>
 
             <TabsContent value="logs" className="mt-6">
-              <LogSection logs={state.logs} />
+              <LogSection logs={state.logs} addLog={addLog} />
             </TabsContent>
 
             <TabsContent value="print" className="mt-6">
