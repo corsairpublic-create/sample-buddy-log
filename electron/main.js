@@ -12,11 +12,28 @@ let mainWindow;
 // Logging functions
 function writeAuditLog(entry) {
   const logPath = path.join(app.getPath('userData'), 'audit.log');
+  const desktopLogPath = path.join(app.getPath('desktop'), 'Sample-Buddy-Log.txt');
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] ${JSON.stringify(entry)}\n`;
   
   try {
+    // Write to app data directory
     fs.appendFileSync(logPath, logEntry, 'utf8');
+    
+    // Write to desktop file
+    const logs = store.get('logs', []);
+    const formattedLogs = logs.map(log => 
+      `[${new Date(log.timestamp).toLocaleString('it-IT')}] ${log.operator} - ${log.action}: ${log.details} (${log.itemType}: ${log.itemCode})`
+    ).join('\n');
+    
+    const desktopLogContent = [
+      `SAMPLE BUDDY - LOG DELLE AZIONI\n`,
+      `=================================\n\n`,
+      `Ultimo aggiornamento: ${new Date().toLocaleString('it-IT')}\n\n`,
+      formattedLogs
+    ].join('');
+    
+    fs.writeFileSync(desktopLogPath, desktopLogContent, 'utf8');
   } catch (error) {
     console.error('Failed to write audit log:', error);
   }

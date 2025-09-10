@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LogEntry } from '@/types/sample';
-import { FileText, Clock, User, Activity, Printer } from 'lucide-react';
+import { FileText, Clock, User, Activity, Printer, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface LogSectionProps {
@@ -40,32 +40,95 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
     }).format(new Date(timestamp));
   };
 
-  const printLog = () => {
-    let logContent = 'LOG ATTIVITÀ SISTEMA GESTIONE CAMPIONI\n';
-    logContent += '======================================\n\n';
-    logContent += `Stampato il: ${new Date().toLocaleString('it-IT')}\n`;
-    logContent += `Totale registrazioni: ${logs.length}\n\n`;
-
-    logs.forEach((log, index) => {
-      logContent += `${index + 1}. ${log.action}\n`;
-      logContent += `   Data/Ora: ${formatTimestamp(log.timestamp)}\n`;
-      logContent += `   Operatore: ${log.operator}\n`;
-      logContent += `   Tipo: ${log.itemType}\n`;
-      logContent += `   Codice: ${log.itemCode}\n`;
-      logContent += `   Dettagli: ${log.details}\n\n`;
-    });
-
-    // Create and download log
-    const blob = new Blob([logContent], { type: 'text/plain' });
+  const exportLog = () => {
+    const logText = logs.map(log => 
+      `[${formatTimestamp(log.timestamp)}] ${log.operator} - ${log.action}: ${log.details} (${log.itemType}: ${log.itemCode})`
+    ).join('\n');
+    
+    const fullLogContent = [
+      `SAMPLE BUDDY - LOG DELLE AZIONI\n`,
+      `=================================\n\n`,
+      `Data generazione: ${new Date().toLocaleString('it-IT')}\n\n`,
+      logText
+    ].join('');
+    
+    const blob = new Blob([fullLogContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    link.download = `sample-buddy-log-${Date.now()}.txt`;
     link.href = url;
-    link.download = `log_attivita_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    
+    addLog('export', 'Log esportato', 'sample', 'log-export');
+  };
 
-    addLog('LOG_STAMPATO', 'Log delle attività stampato e scaricato', 'sample', '');
-    toast.success('Log scaricato con successo');
+  const printLog = () => {
+    const logText = logs.map(log => 
+      `[${formatTimestamp(log.timestamp)}] ${log.operator} - ${log.action}: ${log.details} (${log.itemType}: ${log.itemCode})`
+    ).join('\n');
+    
+    const printHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Sample Buddy - Log delle Azioni</title>
+          <style>
+            body {
+              font-family: 'Courier New', monospace;
+              font-size: 12px;
+              line-height: 1.4;
+              margin: 20px;
+              color: black;
+            }
+            h1 {
+              text-align: center;
+              border-bottom: 2px solid black;
+              padding-bottom: 10px;
+            }
+            .meta {
+              text-align: center;
+              margin-bottom: 20px;
+              font-style: italic;
+            }
+            .log-entry {
+              margin-bottom: 5px;
+              white-space: pre-wrap;
+            }
+            @media print {
+              body { margin: 10px; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>SAMPLE BUDDY - LOG DELLE AZIONI</h1>
+          <div class="meta">Data generazione: ${new Date().toLocaleString('it-IT')}</div>
+          <div class="log-content">
+            ${logs.map(log => 
+              `<div class="log-entry">[${formatTimestamp(log.timestamp)}] ${log.operator} - ${log.action}: ${log.details} (${log.itemType}: ${log.itemCode})</div>`
+            ).join('')}
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() {
+                window.close();
+              };
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printHTML);
+      printWindow.document.close();
+    }
+    
+    addLog('print', 'Log stampato', 'sample', 'log-print');
   };
 
   return (
@@ -81,10 +144,16 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
               Totale azioni registrate: {logs.length}
             </div>
           </div>
-          <Button onClick={printLog} variant="outline" size="sm" className="gap-2">
-            <Printer className="w-4 h-4" />
-            Stampa Log
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={exportLog} size="sm" variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Esporta
+            </Button>
+            <Button onClick={printLog} size="sm" variant="outline" className="gap-2">
+              <Printer className="w-4 h-4" />
+              Stampa
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

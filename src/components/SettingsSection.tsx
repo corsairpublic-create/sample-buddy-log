@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AppState } from '@/types/sample';
-import { Settings, Key, Printer, Save, Check, X } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Printer, Save, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SettingsSectionProps {
@@ -238,7 +238,7 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5" />
+            <SettingsIcon className="w-5 h-5" />
             Informazioni Sistema
           </CardTitle>
         </CardHeader>

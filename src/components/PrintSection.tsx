@@ -20,8 +20,8 @@ interface PrintSectionProps {
 
 export function PrintSection({ state, printerSettings }: PrintSectionProps) {
   const [barcodeText, setBarcodeText] = useState('');
-  const [width, setWidth] = useState(printerSettings.defaultWidth);
-  const [height, setHeight] = useState(printerSettings.defaultHeight);
+  const [width, setWidth] = useState(7.0); // 70mm default
+  const [height, setHeight] = useState(4.5); // 45mm default
   const [selectedPrinter, setSelectedPrinter] = useState(printerSettings.selectedPrinter);
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
 
@@ -80,43 +80,47 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
             <head>
               <title>Stampa Codice a Barre</title>
               <style>
+                @page {
+                  size: ${width * 10}mm ${height * 10}mm;
+                  margin: 0;
+                }
                 body {
                   margin: 0;
-                  padding: 20px;
+                  padding: 0;
+                  width: ${width * 10}mm;
+                  height: ${height * 10}mm;
                   display: flex;
+                  flex-direction: column;
                   justify-content: center;
                   align-items: center;
-                  min-height: 100vh;
                   font-family: Arial, sans-serif;
+                  background: white;
                 }
                 .barcode-container {
                   text-align: center;
-                  border: 1px solid #ddd;
-                  padding: 20px;
-                  background: white;
+                  display: flex;
+                  flex-direction: column;
+                  justify-content: center;
+                  align-items: center;
+                  width: 100%;
+                  height: 100%;
                 }
                 img {
-                  max-width: 100%;
+                  max-width: 90%;
                   height: auto;
+                  margin-bottom: 2mm;
                 }
-                .info {
-                  margin-top: 10px;
-                  font-size: 12px;
-                  color: #666;
-                }
-                @media print {
-                  body { margin: 0; padding: 0; }
-                  .barcode-container { border: none; }
+                .barcode-text {
+                  font-size: 8pt;
+                  font-weight: bold;
+                  color: black;
                 }
               </style>
             </head>
             <body>
               <div class="barcode-container">
                 <img src="${barcodeDataUrl}" alt="Codice a barre: ${barcodeText}" />
-                <div class="info">
-                  Dimensioni: ${width}cm x ${height}cm<br>
-                  Generato il: ${new Date().toLocaleString('it-IT')}
-                </div>
+                <div class="barcode-text">${barcodeText}</div>
               </div>
             </body>
           </html>
@@ -153,43 +157,47 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
         <head>
           <title>Stampa Codice a Barre</title>
           <style>
+            @page {
+              size: ${width * 10}mm ${height * 10}mm;
+              margin: 0;
+            }
             body {
               margin: 0;
-              padding: 20px;
+              padding: 0;
+              width: ${width * 10}mm;
+              height: ${height * 10}mm;
               display: flex;
+              flex-direction: column;
               justify-content: center;
               align-items: center;
-              min-height: 100vh;
               font-family: Arial, sans-serif;
+              background: white;
             }
             .barcode-container {
               text-align: center;
-              border: 1px solid #ddd;
-              padding: 20px;
-              background: white;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              width: 100%;
+              height: 100%;
             }
             img {
-              max-width: 100%;
+              max-width: 90%;
               height: auto;
+              margin-bottom: 2mm;
             }
-            .info {
-              margin-top: 10px;
-              font-size: 12px;
-              color: #666;
-            }
-            @media print {
-              body { margin: 0; padding: 0; }
-              .barcode-container { border: none; }
+            .barcode-text {
+              font-size: 8pt;
+              font-weight: bold;
+              color: black;
             }
           </style>
         </head>
         <body>
           <div class="barcode-container">
             <img src="${barcodeDataUrl}" alt="Codice a barre: ${barcodeText}" />
-            <div class="info">
-              Dimensioni: ${width}cm x ${height}cm<br>
-              Generato il: ${new Date().toLocaleString('it-IT')}
-            </div>
+            <div class="barcode-text">${barcodeText}</div>
           </div>
           <script>
             window.onload = function() {
@@ -324,6 +332,7 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
                 type="number"
                 min="1"
                 max="50"
+                step="0.1"
                 value={width}
                 onChange={(e) => setWidth(Number(e.target.value))}
               />
@@ -335,6 +344,7 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
                 type="number"
                 min="1"
                 max="50"
+                step="0.1"
                 value={height}
                 onChange={(e) => setHeight(Number(e.target.value))}
               />
