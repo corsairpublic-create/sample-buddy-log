@@ -1,23 +1,57 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Sample, Box, Shelf, LogEntry, AppState } from '@/types/sample';
 import { toast } from 'sonner';
 
 export function useSampleManager() {
-  const [state, setState] = useState<AppState>({
-    currentOperator: null,
-    shelves: [],
-    logs: [],
-    settings: {
-      deletePassword: 'Francimicrob',
-      printerSettings: {
-        defaultWidth: 4,
-        defaultHeight: 2,
-        selectedPrinter: ''
+  const [state, setState] = useState<AppState>(() => {
+    const stored = localStorage.getItem('sampleManagerState');
+    return stored ? JSON.parse(stored) : {
+      currentOperator: null,
+      shelves: [],
+      logs: [],
+      settings: {
+        deletePassword: 'Francimicrob',
+        printerSettings: {
+          defaultWidth: 4,
+          defaultHeight: 2,
+          selectedPrinter: ''
+        }
       }
-    }
+    };
   });
 
-  const addLog = useCallback((action: string, details: string, itemType: 'shelf' | 'box' | 'sample', itemCode: string) => {
+  // Load state from Electron store on mount
+  useEffect(() => {
+    const loadStateFromElectron = async () => {
+      if (window.electronAPI) {
+        try {
+          const electronState = await window.electronAPI.dbGet('appState');
+          if (electronState) {
+            setState(electronState);
+          }
+        } catch (error) {
+          console.error('Failed to load state from Electron:', error);
+        }
+      }
+    };
+
+    loadStateFromElectron();
+  }, []);
+
+  // Save state to both localStorage and Electron store
+  const saveState = useCallback(async (newState: AppState) => {
+    localStorage.setItem('sampleManagerState', JSON.stringify(newState));
+    
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.dbSet('appState', newState);
+      } catch (error) {
+        console.error('Failed to save state to Electron:', error);
+      }
+    }
+  }, []);
+
+  const addLog = useCallback(async (action: string, details: string, itemType: 'shelf' | 'box' | 'sample', itemCode: string) => {
     if (!state.currentOperator) return;
     
     const logEntry: LogEntry = {
@@ -30,29 +64,44 @@ export function useSampleManager() {
       itemCode
     };
 
-    setState(prev => ({
-      ...prev,
-      logs: [logEntry, ...prev.logs]
-    }));
-  }, [state.currentOperator]);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        logs: [logEntry, ...prev.logs]
+      };
+      saveState(newState);
+      return newState;
+    });
+
+    // Also save to Electron audit log
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.dbPushLog(logEntry);
+      } catch (error) {
+        console.error('Failed to write audit log:', error);
+      }
+    }
+  }, [state.currentOperator, saveState]);
 
   const login = useCallback((operator: string) => {
-    setState(prev => ({
-      ...prev,
-      currentOperator: operator
-    }));
+    setState(prev => {
+      const newState = { ...prev, currentOperator: operator };
+      saveState(newState);
+      return newState;
+    });
     addLog('LOGIN', `Operatore ${operator} ha effettuato l'accesso`, 'shelf', '');
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const logout = useCallback(() => {
     if (state.currentOperator) {
       addLog('LOGOUT', `Operatore ${state.currentOperator} ha effettuato il logout`, 'shelf', '');
     }
-    setState(prev => ({
-      ...prev,
-      currentOperator: null
-    }));
-  }, [state.currentOperator, addLog]);
+    setState(prev => {
+      const newState = { ...prev, currentOperator: null };
+      saveState(newState);
+      return newState;
+    });
+  }, [state.currentOperator, addLog, saveState]);
 
   const determineItemType = (code: string): 'shelf' | 'box' | 'sample' => {
     const upperCode = code.toUpperCase();
@@ -104,8 +153,7 @@ export function useSampleManager() {
             addLog('SCAFFALE_CREATO', `Nuovo scaffale creato: ${code}`, 'shelf', code);
           }
           addLog('SCAFFALE_SCANSIONATO', `Scaffale scansionato: ${code}`, 'shelf', code);
-          toast.success(`Scaffale scansionato: ${code}`);
-          return newState;
+          break;
           
         case 'box':
           if (!currentShelf) {
@@ -134,8 +182,7 @@ export function useSampleManager() {
             addLog('CASSETTA_CREATA', `Nuova cassetta creata: ${code} in scaffale ${currentShelf}`, 'box', code);
           }
           addLog('CASSETTA_SCANSIONATA', `Cassetta scansionata: ${code} in scaffale ${currentShelf}`, 'box', code);
-          toast.success(`Cassetta scansionata: ${code}`);
-          return newState;
+          break;
           
         case 'sample':
           if (!currentShelf || !currentBox) {
@@ -173,13 +220,13 @@ export function useSampleManager() {
           
           sampleBox.samples.push(sample);
           addLog('CAMPIONE_ARCHIVIATO', `Campione archiviato: ${formattedCode} in cassetta ${currentBox} di scaffale ${currentShelf}`, 'sample', formattedCode);
-          toast.success(`Campione archiviato: ${formattedCode}`);
-          return newState;
+          break;
       }
       
-      return prev;
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const createShelf = useCallback((code: string) => {
     setState(prev => {
@@ -201,12 +248,14 @@ export function useSampleManager() {
       addLog('SCAFFALE_CREATO_MANUALMENTE', `Scaffale creato manualmente: ${code}`, 'shelf', code);
       toast.success(`Scaffale creato: ${code}`);
       
-      return {
+      const newState = {
         ...prev,
         shelves: [...prev.shelves, shelf]
       };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const createBox = useCallback((shelfCode: string, boxCode: string) => {
     setState(prev => {
@@ -241,12 +290,14 @@ export function useSampleManager() {
       addLog('CASSETTA_CREATA_MANUALMENTE', `Cassetta creata manualmente: ${boxCode} in scaffale ${shelfCode}`, 'box', boxCode);
       toast.success(`Cassetta creata: ${boxCode}`);
 
-      return {
+      const newState = {
         ...prev,
         shelves: newShelves
       };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const createSample = useCallback((shelfCode: string, boxCode: string, sampleCode: string) => {
     setState(prev => {
@@ -293,12 +344,14 @@ export function useSampleManager() {
       addLog('CAMPIONE_CREATO_MANUALMENTE', `Campione creato manualmente: ${formattedCode} in cassetta ${boxCode} di scaffale ${shelfCode}`, 'sample', formattedCode);
       toast.success(`Campione creato: ${formattedCode}`);
 
-      return {
+      const newState = {
         ...prev,
         shelves: newShelves
       };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const renameSample = useCallback((sampleId: string, newCode: string) => {
     setState(prev => {
@@ -320,9 +373,11 @@ export function useSampleManager() {
         toast.success(`Campione rinominato: ${newCode}`);
       }
 
-      return { ...prev, shelves: newShelves };
+      const newState = { ...prev, shelves: newShelves };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const renameBox = useCallback((boxId: string, newCode: string) => {
     setState(prev => {
@@ -341,9 +396,11 @@ export function useSampleManager() {
         toast.success(`Cassetta rinominata: ${newCode}`);
       }
 
-      return { ...prev, shelves: newShelves };
+      const newState = { ...prev, shelves: newShelves };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const renameShelf = useCallback((shelfId: string, newCode: string) => {
     setState(prev => {
@@ -359,9 +416,11 @@ export function useSampleManager() {
         toast.success(`Scaffale rinominato: ${newCode}`);
       }
 
-      return { ...prev, shelves: newShelves };
+      const newState = { ...prev, shelves: newShelves };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const moveSample = useCallback((sampleId: string, targetBoxId: string) => {
     setState(prev => {
@@ -403,9 +462,11 @@ export function useSampleManager() {
         }
       }
 
-      return { ...prev, shelves: newShelves };
+      const newState = { ...prev, shelves: newShelves };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const moveBox = useCallback((boxId: string, targetShelfId: string) => {
     setState(prev => {
@@ -440,9 +501,11 @@ export function useSampleManager() {
         }
       }
 
-      return { ...prev, shelves: newShelves };
+      const newState = { ...prev, shelves: newShelves };
+      saveState(newState);
+      return newState;
     });
-  }, [addLog]);
+  }, [addLog, saveState]);
 
   const bulkDispose = useCallback((selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => {
     setState(prev => {
@@ -501,13 +564,34 @@ export function useSampleManager() {
         }
       });
 
+      saveState(newState);
       return newState;
     });
-
+    
     toast.success('Elementi smaltiti con successo');
-  }, [addLog]);
+  }, [addLog, saveState]);
 
-  const bulkDelete = useCallback((selectedItems: { shelves: string[], boxes: string[], samples: string[] }) => {
+  const bulkDelete = useCallback(async (selectedItems: { shelves: string[], boxes: string[], samples: string[] }, password: string) => {
+    // Verify password using Electron API if available
+    if (window.electronAPI) {
+      try {
+        const isValid = await window.electronAPI.verifyPassword(password);
+        if (!isValid) {
+          toast.error('Password non corretta');
+          return false;
+        }
+      } catch (error) {
+        toast.error('Errore nella verifica password');
+        return false;
+      }
+    } else {
+      // Fallback for web version
+      if (password !== state.settings.deletePassword) {
+        toast.error('Password non corretta');
+        return false;
+      }
+    }
+
     setState(prev => {
       const newState = { ...prev };
       
@@ -515,15 +599,15 @@ export function useSampleManager() {
       selectedItems.samples.forEach(sampleId => {
         newState.shelves.forEach(shelf => {
           shelf.boxes.forEach(box => {
-            const sample = box.samples.find(s => s.id === sampleId);
-            if (sample) {
-              sample.status = 'deleted';
-              sample.deletedAt = new Date();
+            const sampleIndex = box.samples.findIndex(s => s.id === sampleId);
+            if (sampleIndex !== -1) {
+              const sample = box.samples[sampleIndex];
               addLog('CAMPIONE_ELIMINATO', 
                 `Campione eliminato: ${sample.code} da cassetta ${box.code} di scaffale ${shelf.code}`,
                 'sample', 
                 sample.code
               );
+              box.samples.splice(sampleIndex, 1);
             }
           });
         });
@@ -532,46 +616,119 @@ export function useSampleManager() {
       // Delete boxes
       selectedItems.boxes.forEach(boxId => {
         newState.shelves.forEach(shelf => {
-          const box = shelf.boxes.find(b => b.id === boxId);
-          if (box) {
-            box.status = 'deleted';
-            box.samples.forEach(sample => {
-              sample.status = 'deleted';
-              sample.deletedAt = new Date();
-            });
+          const boxIndex = shelf.boxes.findIndex(b => b.id === boxId);
+          if (boxIndex !== -1) {
+            const box = shelf.boxes[boxIndex];
             addLog('CASSETTA_ELIMINATA', 
-              `Cassetta eliminata: ${box.code} da scaffale ${shelf.code}`,
+              `Cassetta eliminata: ${box.code} da scaffale ${shelf.code} (con ${box.samples.length} campioni)`,
               'box', 
               box.code
             );
+            shelf.boxes.splice(boxIndex, 1);
           }
         });
       });
 
       // Delete shelves
       selectedItems.shelves.forEach(shelfId => {
-        const shelf = newState.shelves.find(s => s.id === shelfId);
-        if (shelf) {
-          shelf.status = 'deleted';
-          shelf.boxes.forEach(box => {
-            box.status = 'deleted';
-            box.samples.forEach(sample => {
-              sample.status = 'deleted';
-              sample.deletedAt = new Date();
-            });
-          });
-          addLog('SCAFFALE_ELIMINATO', `Scaffale eliminato: ${shelf.code}`, 'shelf', shelf.code);
+        const shelfIndex = newState.shelves.findIndex(s => s.id === shelfId);
+        if (shelfIndex !== -1) {
+          const shelf = newState.shelves[shelfIndex];
+          const totalSamples = shelf.boxes.reduce((acc, box) => acc + box.samples.length, 0);
+          addLog('SCAFFALE_ELIMINATO', 
+            `Scaffale eliminato: ${shelf.code} (con ${shelf.boxes.length} cassette e ${totalSamples} campioni)`,
+            'shelf', 
+            shelf.code
+          );
+          newState.shelves.splice(shelfIndex, 1);
         }
       });
 
+      saveState(newState);
       return newState;
     });
-
+    
     toast.success('Elementi eliminati con successo');
+    return true;
+  }, [addLog, saveState, state.settings.deletePassword]);
+
+  const updateSettings = useCallback((settings: AppState['settings']) => {
+    setState(prev => {
+      const newState = { ...prev, settings };
+      saveState(newState);
+      return newState;
+    });
+  }, [saveState]);
+
+  // Export database function
+  const exportDB = useCallback(async () => {
+    if (window.electronAPI) {
+      try {
+        const result = await window.electronAPI.dbExport();
+        if (result.success) {
+          addLog('DB_EXPORT', `Database esportato in: ${result.path}`, 'sample', '');
+          toast.success('Database esportato con successo');
+          return { success: true, message: 'Database esportato con successo' };
+        }
+        return { success: false, message: 'Esportazione annullata' };
+      } catch (error) {
+        return { success: false, message: `Errore durante l'esportazione: ${error}` };
+      }
+    } else {
+      // Fallback for web version
+      const dataStr = JSON.stringify(state, null, 2);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      const exportFileDefaultName = `sample-buddy-backup-${new Date().toISOString().split('T')[0]}.json`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+      
+      addLog('DB_EXPORT', 'Database esportato (web)', 'sample', '');
+      toast.success('Database esportato con successo');
+      return { success: true, message: 'Database esportato con successo' };
+    }
+  }, [state, addLog]);
+
+  // Import database function
+  const importDB = useCallback(async () => {
+    if (window.electronAPI) {
+      try {
+        const result = await window.electronAPI.dbImport();
+        if (result.success) {
+          // Reload the state after import
+          const electronState = await window.electronAPI.dbGet('appState');
+          if (electronState) {
+            setState(electronState);
+            addLog('DB_IMPORT', `Database importato da: ${result.path}`, 'sample', '');
+            toast.success('Database importato con successo');
+            return { success: true, message: 'Database importato con successo' };
+          }
+        }
+        return { success: false, message: result.error || 'Importazione annullata' };
+      } catch (error) {
+        return { success: false, message: `Errore durante l'importazione: ${error}` };
+      }
+    } else {
+      // Fallback for web version
+      toast.error('Importazione non disponibile nella versione web');
+      return { success: false, message: 'Importazione non disponibile nella versione web' };
+    }
   }, [addLog]);
+
+  const moveItems = useCallback((type: 'sample' | 'box', itemIds: string[], targetId: string) => {
+    if (type === 'sample') {
+      itemIds.forEach(sampleId => moveSample(sampleId, targetId));
+    } else if (type === 'box') {
+      itemIds.forEach(boxId => moveBox(boxId, targetId));
+    }
+  }, [moveSample, moveBox]);
 
   return {
     state,
+    setState,
+    addLog,
     login,
     logout,
     scanCode,
@@ -585,7 +742,9 @@ export function useSampleManager() {
     moveBox,
     bulkDispose,
     bulkDelete,
-    addLog,
-    setState
+    moveItems,
+    updateSettings,
+    exportDB,
+    importDB
   };
 }

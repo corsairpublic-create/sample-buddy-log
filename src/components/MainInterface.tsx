@@ -11,7 +11,7 @@ import { ManualCreation } from './ManualCreation';
 import { GuideSection } from './GuideSection';
 import { ArchivingStatus } from './ArchivingStatus';
 import { useSampleManager } from '@/hooks/useSampleManager';
-import { LogOut, Archive, Search, Printer, Settings, Plus, HelpCircle, FileText } from 'lucide-react';
+import { LogOut, Archive, Search, Printer, Settings, Plus, HelpCircle, FileText, Download, Upload } from 'lucide-react';
 
 interface MainInterfaceProps {
   onLogout: () => void;
@@ -19,6 +19,7 @@ interface MainInterfaceProps {
 }
 
 export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
+  const manager = useSampleManager();
   const {
     state,
     scanCode,
@@ -34,7 +35,8 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
     bulkDelete,
     addLog,
     setState
-  } = useSampleManager();
+  } = manager;
+  
   const [archivingState, setArchivingState] = useState<{
     currentShelf?: string;
     currentBox?: string;
@@ -88,13 +90,29 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
           <div>
             <h1 className="text-2xl font-bold text-primary">Sistema Gestione Campioni</h1>
             <p className="text-sm text-muted-foreground">
+              Sistema avanzato per la gestione, archiviazione e smaltimento dei campioni
+            </p>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">a cura di Buzle Francesco Tudor</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
               Operatore: <span className="font-medium text-foreground">{operator}</span>
             </p>
           </div>
-          <Button onClick={onLogout} variant="outline" className="gap-2">
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => manager.exportDB()} variant="outline" size="sm" className="gap-2">
+              <Download className="w-4 h-4" />
+              Esporta DB
+            </Button>
+            <Button onClick={() => manager.importDB()} variant="outline" size="sm" className="gap-2">
+              <Upload className="w-4 h-4" />
+              Importa DB
+            </Button>
+            <Button onClick={onLogout} variant="outline" className="gap-2">
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -157,7 +175,7 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
                   else if (type === 'box') moveBox(id, targetId);
                 }}
                 onBulkDispose={bulkDispose}
-                onBulkDelete={bulkDelete}
+                onBulkDelete={(items) => bulkDelete(items, '')}
               />
             </TabsContent>
 

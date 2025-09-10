@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,27 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
   const [width, setWidth] = useState(printerSettings.defaultWidth);
   const [height, setHeight] = useState(printerSettings.defaultHeight);
   const [selectedPrinter, setSelectedPrinter] = useState(printerSettings.selectedPrinter);
+  const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
+
+  // Load available printers from Electron
+  useEffect(() => {
+    const loadPrinters = async () => {
+      if (window.electronAPI) {
+        try {
+          const printers = await window.electronAPI.getPrinters();
+          setAvailablePrinters(printers);
+          if (printers.length > 0 && !selectedPrinter) {
+            const defaultPrinter = printers.find(p => p.isDefault) || printers[0];
+            setSelectedPrinter(defaultPrinter.name);
+          }
+        } catch (error) {
+          console.error('Failed to load printers:', error);
+        }
+      }
+    };
+
+    loadPrinters();
+  }, [selectedPrinter]);
 
   const generateBarcode = (text: string) => {
     try {
@@ -41,7 +62,7 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
     }
   };
 
-  const printBarcode = () => {
+  const printBarcode = async () => {
     if (!barcodeText.trim()) {
       toast.error('Inserisci un testo per il codice a barre');
       return;
@@ -50,6 +71,76 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
     const barcodeDataUrl = generateBarcode(barcodeText);
     if (!barcodeDataUrl) return;
 
+    // Try native printing with Electron first
+    if (window.electronAPI && selectedPrinter) {
+      try {
+        const printHTML = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Stampa Codice a Barre</title>
+              <style>
+                body {
+                  margin: 0;
+                  padding: 20px;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  min-height: 100vh;
+                  font-family: Arial, sans-serif;
+                }
+                .barcode-container {
+                  text-align: center;
+                  border: 1px solid #ddd;
+                  padding: 20px;
+                  background: white;
+                }
+                img {
+                  max-width: 100%;
+                  height: auto;
+                }
+                .info {
+                  margin-top: 10px;
+                  font-size: 12px;
+                  color: #666;
+                }
+                @media print {
+                  body { margin: 0; padding: 0; }
+                  .barcode-container { border: none; }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="barcode-container">
+                <img src="${barcodeDataUrl}" alt="Codice a barre: ${barcodeText}" />
+                <div class="info">
+                  Dimensioni: ${width}cm x ${height}cm<br>
+                  Generato il: ${new Date().toLocaleString('it-IT')}
+                </div>
+              </div>
+            </body>
+          </html>
+        `;
+
+        const result = await window.electronAPI.print({
+          html: printHTML,
+          printerName: selectedPrinter,
+          silent: true
+        });
+
+        if (result.success) {
+          toast.success('Codice a barre stampato con successo');
+          return;
+        } else {
+          throw new Error(result.error || 'Errore durante la stampa');
+        }
+      } catch (error) {
+        console.error('Native print failed, falling back to browser print:', error);
+        toast.error(`Errore stampa nativa: ${error}. Uso stampa browser.`);
+      }
+    }
+
+    // Fallback to browser printing
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       toast.error('Impossibile aprire la finestra di stampa');
@@ -113,7 +204,7 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
     `);
     
     printWindow.document.close();
-    toast.success('Codice a barre inviato in stampa');
+    toast.success('Codice a barre inviato in stampa (browser)');
   };
 
   const downloadBarcode = () => {
@@ -208,9 +299,18 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
                   <SelectValue placeholder="Seleziona stampante" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Stampante predefinita</SelectItem>
-                  <SelectItem value="network1">Stampante di rete 1</SelectItem>
-                  <SelectItem value="network2">Stampante di rete 2</SelectItem>
+                  {availablePrinters.length > 0 ? (
+                    availablePrinters.map((printer) => (
+                      <SelectItem key={printer.name} value={printer.name}>
+                        {printer.displayName || printer.name} {printer.isDefault ? '(Predefinita)' : ''}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="default">Stampante predefinita</SelectItem>
+                      <SelectItem value="pdf">Salva come PDF</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

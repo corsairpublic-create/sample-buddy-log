@@ -24,35 +24,52 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
   const [printerHeight, setPrinterHeight] = useState(settings.printerSettings.defaultHeight);
   const [selectedPrinter, setSelectedPrinter] = useState(settings.printerSettings.selectedPrinter);
 
-  const handlePasswordChange = () => {
-    if (oldPassword !== settings.deletePassword) {
-      toast.error('Password precedente non corretta');
-      return;
-    }
-
+  const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
       toast.error('Le nuove password non corrispondono');
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error('La nuova password deve essere di almeno 6 caratteri');
+    if (newPassword.length < 3) {
+      toast.error('La nuova password deve essere di almeno 3 caratteri');
       return;
     }
 
-    onSettingsChange({
-      ...settings,
-      deletePassword: newPassword
-    });
+    // Use Electron API if available for password management
+    if (window.electronAPI) {
+      try {
+        const result = await window.electronAPI.changePassword(oldPassword, newPassword);
+        if (result.success) {
+          toast.success('Password cambiata con successo');
+          addLog('PASSWORD_CHANGED', 'Password di eliminazione modificata (Electron)', 'sample', '');
+        } else {
+          toast.error(result.error || 'Errore nel cambio password');
+          return;
+        }
+      } catch (error) {
+        toast.error('Errore durante il cambio password');
+        return;
+      }
+    } else {
+      // Fallback for web version
+      if (oldPassword !== settings.deletePassword) {
+        toast.error('Password attuale non corretta');
+        return;
+      }
 
-    addLog('PASSWORD_CAMBIATA', 'Password di eliminazione modificata', 'shelf', '');
+      onSettingsChange({
+        ...settings,
+        deletePassword: newPassword
+      });
+
+      toast.success('Password cambiata con successo');
+      addLog('PASSWORD_CHANGED', 'Password di eliminazione modificata', 'sample', '');
+    }
     
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
     setShowPasswordDialog(false);
-    
-    toast.success('Password modificata con successo');
   };
 
   const handlePrinterSettingsChange = () => {
@@ -65,7 +82,7 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
       }
     });
 
-    addLog('IMPOSTAZIONI_STAMPANTE', `Impostazioni stampante aggiornate: ${printerWidth}x${printerHeight}cm, stampante: ${selectedPrinter}`, 'shelf', '');
+    addLog('IMPOSTAZIONI_STAMPANTE', `Impostazioni stampante aggiornate: ${printerWidth}x${printerHeight}cm, stampante: ${selectedPrinter}`, 'sample', '');
     toast.success('Impostazioni stampante salvate');
   };
 
@@ -248,7 +265,10 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
           <div className="pt-4 border-t">
             <p className="text-xs text-muted-foreground">
               Sistema di gestione campioni - Tutte le azioni vengono registrate nel log delle attività.
-              Per modificare le impostazioni di sistema contattare l'amministratore.
+              Per informazioni o domande contattare francescobuzle@icloud.com
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Programma sviluppato da Buzle Francesco Tudor
             </p>
           </div>
         </CardContent>
