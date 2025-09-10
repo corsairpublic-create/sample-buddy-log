@@ -20,8 +20,8 @@ interface PrintSectionProps {
 
 export function PrintSection({ state, printerSettings }: PrintSectionProps) {
   const [barcodeText, setBarcodeText] = useState('');
-  const [width, setWidth] = useState(7.0); // 70mm default
-  const [height, setHeight] = useState(4.5); // 45mm default
+  const [width] = useState(7.0); // 70mm default
+  const [height] = useState(4.5); // 45mm default
   const [selectedPrinter, setSelectedPrinter] = useState(printerSettings.selectedPrinter);
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
 
@@ -81,14 +81,14 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
               <title>Stampa Codice a Barre</title>
               <style>
                 @page {
-                  size: ${width * 10}mm ${height * 10}mm;
+                  size: 70mm 45mm;
                   margin: 0;
                 }
                 body {
                   margin: 0;
                   padding: 0;
-                  width: ${width * 10}mm;
-                  height: ${height * 10}mm;
+                  width: 70mm;
+                  height: 45mm;
                   display: flex;
                   flex-direction: column;
                   justify-content: center;
@@ -158,14 +158,14 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
           <title>Stampa Codice a Barre</title>
           <style>
             @page {
-              size: ${width * 10}mm ${height * 10}mm;
+              size: 70mm 45mm;
               margin: 0;
             }
             body {
               margin: 0;
               padding: 0;
-              width: ${width * 10}mm;
-              height: ${height * 10}mm;
+              width: 70mm;
+              height: 45mm;
               display: flex;
               flex-direction: column;
               justify-content: center;
@@ -324,31 +324,8 @@ export function PrintSection({ state, printerSettings }: PrintSectionProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="width">Larghezza (cm)</Label>
-              <Input
-                id="width"
-                type="number"
-                min="1"
-                max="50"
-                step="0.1"
-                value={width}
-                onChange={(e) => setWidth(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="height">Altezza (cm)</Label>
-              <Input
-                id="height"
-                type="number"
-                min="1"
-                max="50"
-                step="0.1"
-                value={height}
-                onChange={(e) => setHeight(Number(e.target.value))}
-              />
-            </div>
+          <div className="text-sm text-muted-foreground">
+            <p>Dimensione pagina fissa: 70mm x 45mm (formato etichetta standard)</p>
           </div>
 
           {/* Preview */}
