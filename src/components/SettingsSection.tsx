@@ -5,16 +5,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AppState } from '@/types/sample';
-import { Settings as SettingsIcon, Key, Printer, Save, Check, X } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Printer, Save, Check, X, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
+import html2pdf from 'html2pdf.js';
 
 interface SettingsSectionProps {
   settings: AppState['settings'];
   onSettingsChange: (settings: AppState['settings']) => void;
   addLog: (action: string, details: string, itemType: 'shelf' | 'box' | 'sample', itemCode: string) => void;
+  logs: any[];
+  allData: AppState;
 }
 
-export function SettingsSection({ settings, onSettingsChange, addLog }: SettingsSectionProps) {
+export function SettingsSection({ settings, onSettingsChange, addLog, logs, allData }: SettingsSectionProps) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -84,6 +87,258 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
 
     addLog('IMPOSTAZIONI_STAMPANTE', `Impostazioni stampante aggiornate: ${printerWidth}x${printerHeight}cm, stampante: ${selectedPrinter}`, 'sample', '');
     toast.success('Impostazioni stampante salvate');
+  };
+
+  const exportDataToPDF = async () => {
+    try {
+      const formatTimestamp = (timestamp: Date) => {
+        return new Intl.DateTimeFormat('it-IT', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }).format(new Date(timestamp));
+      };
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Sample Buddy - Esportazione Dati Completa</title>
+            <style>
+              body {
+                font-family: 'Arial', sans-serif;
+                font-size: 11px;
+                line-height: 1.4;
+                margin: 20px;
+                color: #333;
+              }
+              h1 {
+                text-align: center;
+                color: #2563eb;
+                border-bottom: 2px solid #2563eb;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+              }
+              h2 {
+                color: #1e40af;
+                border-bottom: 1px solid #e5e7eb;
+                padding-bottom: 5px;
+                margin-top: 25px;
+              }
+              .meta {
+                text-align: center;
+                margin-bottom: 30px;
+                padding: 10px;
+                background-color: #f3f4f6;
+                border-radius: 5px;
+              }
+              .section {
+                margin-bottom: 30px;
+                page-break-inside: avoid;
+              }
+              .log-entry {
+                margin-bottom: 8px;
+                padding: 8px;
+                border-left: 3px solid #e5e7eb;
+                background-color: #f9fafb;
+              }
+              .log-timestamp {
+                font-weight: bold;
+                color: #374151;
+              }
+              .log-action {
+                color: #2563eb;
+                font-weight: bold;
+              }
+              .data-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 15px;
+              }
+              .data-table th,
+              .data-table td {
+                border: 1px solid #d1d5db;
+                padding: 8px;
+                text-align: left;
+              }
+              .data-table th {
+                background-color: #f3f4f6;
+                font-weight: bold;
+              }
+              .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+              }
+              .stat-card {
+                padding: 15px;
+                border: 1px solid #d1d5db;
+                border-radius: 5px;
+                background-color: #f9fafb;
+              }
+              .stat-number {
+                font-size: 24px;
+                font-weight: bold;
+                color: #2563eb;
+              }
+              .stat-label {
+                color: #6b7280;
+                margin-top: 5px;
+              }
+              @media print {
+                body { margin: 10px; }
+                .section { page-break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>SAMPLE BUDDY - ESPORTAZIONE DATI COMPLETA</h1>
+            <div class="meta">
+              <strong>Data generazione:</strong> ${new Date().toLocaleString('it-IT')}<br>
+              <strong>Sistema versione:</strong> v1.0.0<br>
+              <strong>Sviluppato da:</strong> Buzle Francesco Tudor
+            </div>
+
+            <div class="section">
+              <h2>📊 Statistiche Generali</h2>
+              <div class="stats-grid">
+                <div class="stat-card">
+                  <div class="stat-number">${allData.shelves.length}</div>
+                  <div class="stat-label">Scaffali Totali</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${allData.shelves.reduce((sum, shelf) => sum + shelf.boxes.length, 0)}</div>
+                  <div class="stat-label">Cassette Totali</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${allData.shelves.reduce((sum, shelf) => sum + shelf.boxes.reduce((boxSum, box) => boxSum + box.samples.length, 0), 0)}</div>
+                  <div class="stat-label">Campioni Totali</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-number">${logs.length}</div>
+                  <div class="stat-label">Azioni Registrate</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>📚 Scaffali</h2>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Codice</th>
+                    <th>Nome</th>
+                    <th>Cassette</th>
+                    <th>Data Creazione</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allData.shelves.map(shelf => `
+                    <tr>
+                      <td>${shelf.code}</td>
+                      <td>${shelf.code}</td>
+                      <td>${shelf.boxes.length}</td>
+                      <td>${formatTimestamp(shelf.createdAt)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <h2>📦 Cassette</h2>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Codice</th>
+                    <th>Nome</th>
+                    <th>Scaffale</th>
+                    <th>Campioni</th>
+                    <th>Data Creazione</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allData.shelves.flatMap(shelf => 
+                    shelf.boxes.map(box => `
+                      <tr>
+                        <td>${box.code}</td>
+                        <td>${box.code}</td>
+                        <td>${shelf.code}</td>
+                        <td>${box.samples.length}</td>
+                        <td>${formatTimestamp(box.createdAt)}</td>
+                      </tr>
+                    `)
+                  ).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <h2>🧪 Campioni</h2>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Codice</th>
+                    <th>Nome</th>
+                    <th>Cassetta</th>
+                    <th>Scaffale</th>
+                    <th>Status</th>
+                    <th>Data Creazione</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allData.shelves.flatMap(shelf => 
+                    shelf.boxes.flatMap(box => 
+                      box.samples.map(sample => `
+                        <tr>
+                          <td>${sample.code}</td>
+                          <td>${sample.code}</td>
+                          <td>${box.code}</td>
+                          <td>${shelf.code}</td>
+                          <td>${sample.status}</td>
+                          <td>${formatTimestamp(sample.createdAt)}</td>
+                        </tr>
+                      `)
+                    )
+                  ).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <h2>📋 Log delle Azioni</h2>
+              ${logs.map(log => `
+                <div class="log-entry">
+                  <div class="log-timestamp">[${formatTimestamp(log.timestamp)}]</div>
+                  <div><span class="log-action">${log.action}</span> - ${log.details}</div>
+                  <div>Operatore: ${log.operator} | Tipo: ${log.itemType} | Codice: ${log.itemCode}</div>
+                </div>
+              `).join('')}
+            </div>
+          </body>
+        </html>
+      `;
+
+      const opt = {
+        margin: 1,
+        filename: `sample-buddy-export-${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(htmlContent).save();
+      
+      addLog('EXPORT_PDF', 'Dati esportati in PDF', 'sample', 'pdf-export');
+      toast.success('Dati esportati in PDF con successo');
+    } catch (error) {
+      console.error('Errore durante l\'esportazione PDF:', error);
+      toast.error('Errore durante l\'esportazione PDF');
+    }
   };
 
   return (
@@ -231,6 +486,26 @@ export function SettingsSection({ settings, onSettingsChange, addLog }: Settings
             <p>• La stampante selezionata sarà quella predefinita per tutte le stampe</p>
             <p>• Le stampanti di rete devono essere configurate nel sistema Windows</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Data Export */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileDown className="w-5 h-5" />
+            Esportazione Dati
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            <p>Esporta tutti i dati del sistema inclusi scaffali, cassette, campioni e log delle azioni in formato PDF stampabile.</p>
+          </div>
+          
+          <Button onClick={exportDataToPDF} className="gap-2">
+            <FileDown className="w-4 h-4" />
+            Esporta Dati
+          </Button>
         </CardContent>
       </Card>
 

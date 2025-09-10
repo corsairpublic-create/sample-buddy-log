@@ -11,7 +11,7 @@ import { ManualCreation } from './ManualCreation';
 import { GuideSection } from './GuideSection';
 import { ArchivingStatus } from './ArchivingStatus';
 import { useSampleManager } from '@/hooks/useSampleManager';
-import { LogOut, Archive, Search, Printer, Settings, Plus, HelpCircle, FileText, Download, Upload } from 'lucide-react';
+import { LogOut, Archive, Search, Printer, Settings, Plus, HelpCircle, FileText } from 'lucide-react';
 
 interface MainInterfaceProps {
   onLogout: () => void;
@@ -100,14 +100,6 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => manager.exportDB()} variant="outline" size="sm" className="gap-2">
-              <Download className="w-4 h-4" />
-              Esporta DB
-            </Button>
-            <Button onClick={() => manager.importDB()} variant="outline" size="sm" className="gap-2">
-              <Upload className="w-4 h-4" />
-              Importa DB
-            </Button>
             <Button onClick={onLogout} variant="outline" className="gap-2">
               <LogOut className="w-4 h-4" />
               Logout
@@ -206,6 +198,8 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
                   setState(prev => ({ ...prev, settings: newSettings }))
                 }
                 addLog={addLog}
+                logs={state.logs}
+                allData={state}
               />
             </TabsContent>
 
