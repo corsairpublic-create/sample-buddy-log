@@ -9,9 +9,19 @@ try {
   console.log('📦 Building React application...');
   execSync('npm run build', { stdio: 'inherit' });
 
-  // Step 2: Copy package files to electron directory
-  console.log('📋 Preparing Electron package...');
+  // Step 2: Copy built files to electron directory
+  console.log('📋 Copying built files to electron directory...');
   const electronDir = path.join(__dirname, 'electron');
+  const distDir = path.join(__dirname, 'dist');
+  const electronDistDir = path.join(electronDir, 'dist');
+  
+  // Remove existing dist in electron folder
+  if (fs.existsSync(electronDistDir)) {
+    fs.rmSync(electronDistDir, { recursive: true, force: true });
+  }
+  
+  // Copy dist folder to electron
+  fs.cpSync(distDir, electronDistDir, { recursive: true });
   
   // Step 3: Install electron dependencies
   console.log('⚡ Installing Electron dependencies...');

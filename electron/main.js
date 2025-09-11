@@ -64,7 +64,6 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
-    // Removed custom icon - uses Windows default
   });
 
   // Load the app
@@ -72,7 +71,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:8080');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
   }
 }
 
