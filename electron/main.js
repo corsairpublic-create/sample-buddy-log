@@ -59,8 +59,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
-    },
-    icon: path.join(__dirname, '../public/favicon.ico')
+    }
+    // Removed custom icon - uses Windows default
   });
 
   // Load the app
