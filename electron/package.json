@@ -11,6 +11,14 @@
     "build": "electron-builder",
     "dist": "electron-builder --publish=never"
   },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "cross-env": "^7.0.3"
+  },
+  "devDependencies": {
+    "electron": "^25.9.8",
+    "electron-builder": "^24.13.3"
+  },
   "build": {
     "appId": "com.buzzlefrancesco.samplebuddy",
     "productName": "Sample Buddy",
@@ -41,12 +49,10 @@
       "createStartMenuShortcut": true
     },
     "mac": {
-      "target": "dmg",
-      "icon": "build/icon.icns"
+      "target": "dmg"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "build/icon.png"
+      "target": "AppImage"
     }
   }
 }
