@@ -1,11 +1,15 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const Store = require('electron-store');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// Initialize electron-store
-const store = new Store();
+let store;
+
+// Initialize electron-store with dynamic import
+async function initStore() {
+  const { default: Store } = await import('electron-store');
+  store = new Store();
+}
 
 let mainWindow;
 
@@ -72,7 +76,10 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await initStore();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
