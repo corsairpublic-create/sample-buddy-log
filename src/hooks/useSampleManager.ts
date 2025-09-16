@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 export function useSampleManager() {
   const [state, setState] = useState<AppState>(() => {
     const stored = localStorage.getItem('sampleManagerState');
-    return stored ? JSON.parse(stored) : {
+    const defaultState = {
       currentOperator: null,
       shelves: [],
       logs: [],
@@ -18,6 +18,20 @@ export function useSampleManager() {
         }
       }
     };
+    
+    if (stored) {
+      const parsedState = JSON.parse(stored);
+      // Ensure password is set to correct value
+      if (!parsedState.settings || parsedState.settings.deletePassword !== 'Francimicrob') {
+        parsedState.settings = {
+          ...parsedState.settings,
+          deletePassword: 'Francimicrob'
+        };
+      }
+      return parsedState;
+    }
+    
+    return defaultState;
   });
 
   // Load state from Electron store on mount
@@ -596,52 +610,61 @@ export function useSampleManager() {
     setState(prev => {
       const newState = { ...prev };
       
-      // Delete samples
+      // Delete samples - mark as deleted instead of removing
       selectedItems.samples.forEach(sampleId => {
         newState.shelves.forEach(shelf => {
           shelf.boxes.forEach(box => {
-            const sampleIndex = box.samples.findIndex(s => s.id === sampleId);
-            if (sampleIndex !== -1) {
-              const sample = box.samples[sampleIndex];
+            const sample = box.samples.find(s => s.id === sampleId);
+            if (sample) {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
               addLog('CAMPIONE_ELIMINATO', 
                 `Campione eliminato: ${sample.code} da cassetta ${box.code} di scaffale ${shelf.code}`,
                 'sample', 
                 sample.code
               );
-              box.samples.splice(sampleIndex, 1);
             }
           });
         });
       });
 
-      // Delete boxes
+      // Delete boxes - mark as deleted instead of removing
       selectedItems.boxes.forEach(boxId => {
         newState.shelves.forEach(shelf => {
-          const boxIndex = shelf.boxes.findIndex(b => b.id === boxId);
-          if (boxIndex !== -1) {
-            const box = shelf.boxes[boxIndex];
+          const box = shelf.boxes.find(b => b.id === boxId);
+          if (box) {
+            box.status = 'deleted';
+            box.samples.forEach(sample => {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
+            });
             addLog('CASSETTA_ELIMINATA', 
               `Cassetta eliminata: ${box.code} da scaffale ${shelf.code} (con ${box.samples.length} campioni)`,
               'box', 
               box.code
             );
-            shelf.boxes.splice(boxIndex, 1);
           }
         });
       });
 
-      // Delete shelves
+      // Delete shelves - mark as deleted instead of removing  
       selectedItems.shelves.forEach(shelfId => {
-        const shelfIndex = newState.shelves.findIndex(s => s.id === shelfId);
-        if (shelfIndex !== -1) {
-          const shelf = newState.shelves[shelfIndex];
+        const shelf = newState.shelves.find(s => s.id === shelfId);
+        if (shelf) {
+          shelf.status = 'deleted';
           const totalSamples = shelf.boxes.reduce((acc, box) => acc + box.samples.length, 0);
+          shelf.boxes.forEach(box => {
+            box.status = 'deleted';
+            box.samples.forEach(sample => {
+              sample.status = 'deleted';
+              sample.deletedAt = new Date();
+            });
+          });
           addLog('SCAFFALE_ELIMINATO', 
             `Scaffale eliminato: ${shelf.code} (con ${shelf.boxes.length} cassette e ${totalSamples} campioni)`,
             'shelf', 
             shelf.code
           );
-          newState.shelves.splice(shelfIndex, 1);
         }
       });
 

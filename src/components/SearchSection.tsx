@@ -46,25 +46,29 @@ export function SearchSection({
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [bulkAction, setBulkAction] = useState<'rename' | 'move' | null>(null);
 
-  // Search logic
+  // Search logic - only show active items
   const searchResults = {
     shelves: state.shelves.filter(shelf => 
-      shelf.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      shelf.boxes.some(box => 
-        box.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        box.samples.some(sample => 
-          sample.code.toLowerCase().includes(searchTerm.toLowerCase())
+      shelf.status === 'active' && (
+        shelf.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shelf.boxes.some(box => 
+          box.status === 'active' && (
+            box.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            box.samples.some(sample => 
+              sample.status === 'active' && sample.code.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+          )
         )
       )
     ),
     samples: [] as Array<Sample & { shelfCode: string; boxCode: string; }>
   };
 
-  // Flatten samples for search
+  // Flatten samples for search - only show active samples
   state.shelves.forEach(shelf => {
     shelf.boxes.forEach(box => {
       box.samples.forEach(sample => {
-        if (sample.code.toLowerCase().includes(searchTerm.toLowerCase())) {
+        if (sample.status === 'active' && sample.code.toLowerCase().includes(searchTerm.toLowerCase())) {
           searchResults.samples.push({
             ...sample,
             shelfCode: shelf.code,
@@ -410,31 +414,31 @@ export function SearchSection({
                             {getStatusBadge(box.status)}
                           </div>
                           
-                          {/* Samples in box */}
-                          {box.samples.map((sample) => (
-                            <div key={sample.id} className="ml-6 mt-1 flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={selectedItems.samples.includes(sample.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedItems(prev => ({
-                                        ...prev,
-                                        samples: [...prev.samples, sample.id]
-                                      }));
-                                    } else {
-                                      setSelectedItems(prev => ({
-                                        ...prev,
-                                        samples: prev.samples.filter(id => id !== sample.id)
-                                      }));
-                                    }
-                                  }}
-                                />
-                                <span>{sample.code}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                {getStatusBadge(sample.status)}
-                                <Badge variant={sample.type === 'TQ' ? 'default' : 'secondary'} className="text-xs">
+                           {/* Samples in box - only show active samples */}
+                           {box.samples.filter(sample => sample.status === 'active').map((sample) => (
+                             <div key={sample.id} className="ml-6 mt-1 flex items-center justify-between text-sm">
+                               <div className="flex items-center gap-2">
+                                 <Checkbox
+                                   checked={selectedItems.samples.includes(sample.id)}
+                                   onCheckedChange={(checked) => {
+                                     if (checked) {
+                                       setSelectedItems(prev => ({
+                                         ...prev,
+                                         samples: [...prev.samples, sample.id]
+                                       }));
+                                     } else {
+                                       setSelectedItems(prev => ({
+                                         ...prev,
+                                         samples: prev.samples.filter(id => id !== sample.id)
+                                       }));
+                                     }
+                                   }}
+                                 />
+                                 <span>{sample.code}</span>
+                               </div>
+                               <div className="flex items-center gap-1">
+                                 {getStatusBadge(sample.status)}
+                                 <Badge variant={sample.type === 'TQ' ? 'default' : 'secondary'} className="text-xs">
                                   {sample.type}
                                 </Badge>
                               </div>

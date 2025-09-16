@@ -137,14 +137,16 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
     
     if (log.action.includes('LOGIN') || log.action.includes('LOGOUT')) {
       category = 'Autenticazione';
-    } else if (log.action.includes('CREATO') || log.action.includes('ARCHIVIATO')) {
-      category = 'Creazione/Archiviazione';
+    } else if (log.action.includes('CREATO') || log.action.includes('ARCHIVIATO') || log.action.includes('SCANSIONATO')) {
+      category = 'Archiviazione';
     } else if (log.action.includes('SMALTITO')) {
-      category = 'Smaltimento';
+      category = 'Smaltimenti';
     } else if (log.action.includes('ELIMINATO')) {
-      category = 'Eliminazione';
-    } else if (log.action.includes('SCANSIONATO')) {
-      category = 'Scansione';
+      category = 'Eliminazioni';
+    } else if (log.action.includes('RINOMINATO') || log.action.includes('SPOSTATO')) {
+      category = 'Modifiche';
+    } else if (log.action.includes('EXPORT') || log.action.includes('IMPORT') || log.action.includes('print')) {
+      category = 'Database';
     }
     
     if (!groups[category]) {
@@ -156,10 +158,11 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
 
   const categoryOrder = [
     'Autenticazione',
-    'Creazione/Archiviazione', 
-    'Scansione',
-    'Smaltimento',
-    'Eliminazione',
+    'Archiviazione',
+    'Smaltimenti',
+    'Eliminazioni',
+    'Modifiche',
+    'Database',
     'Altro'
   ];
 
