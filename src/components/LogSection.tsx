@@ -131,6 +131,38 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
     addLog('print', 'Log stampato', 'sample', 'log-print');
   };
 
+  // Raggruppa i log per tipo di azione
+  const groupedLogs = logs.reduce((groups, log) => {
+    let category = 'Altro';
+    
+    if (log.action.includes('LOGIN') || log.action.includes('LOGOUT')) {
+      category = 'Autenticazione';
+    } else if (log.action.includes('CREATO') || log.action.includes('ARCHIVIATO')) {
+      category = 'Creazione/Archiviazione';
+    } else if (log.action.includes('SMALTITO')) {
+      category = 'Smaltimento';
+    } else if (log.action.includes('ELIMINATO')) {
+      category = 'Eliminazione';
+    } else if (log.action.includes('SCANSIONATO')) {
+      category = 'Scansione';
+    }
+    
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+    groups[category].push(log);
+    return groups;
+  }, {} as Record<string, LogEntry[]>);
+
+  const categoryOrder = [
+    'Autenticazione',
+    'Creazione/Archiviazione', 
+    'Scansione',
+    'Smaltimento',
+    'Eliminazione',
+    'Altro'
+  ];
+
   return (
     <Card>
       <CardHeader>
@@ -182,48 +214,69 @@ export function LogSection({ logs, addLog }: LogSectionProps) {
           </div>
         </div>
 
-        {/* Log entries */}
-        <div className="space-y-3">
+        {/* Log entries grouped by category */}
+        <div className="space-y-6">
           {logs.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               Nessuna attività registrata
             </div>
           ) : (
-            logs.map((log) => (
-              <div key={log.id} className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                <div className="text-2xl">{getItemTypeIcon(log.itemType)}</div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge className={getActionColor(log.action)}>
-                      {log.action}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {log.itemCode && `Codice: ${log.itemCode}`}
-                    </span>
+            categoryOrder.map((category) => {
+              const categoryLogs = groupedLogs[category];
+              if (!categoryLogs || categoryLogs.length === 0) return null;
+
+              return (
+                <div key={category} className="space-y-3">
+                  <div className="border-b border-border/50 pb-2">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <Activity className="w-5 h-5" />
+                      {category}
+                      <Badge variant="secondary" className="ml-2">
+                        {categoryLogs.length}
+                      </Badge>
+                    </h3>
                   </div>
                   
-                  <p className="text-sm font-medium text-foreground mb-1">
-                    {log.details}
-                  </p>
-                  
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatTimestamp(log.timestamp)}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {log.operator}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Activity className="w-3 h-3" />
-                      {log.itemType}
-                    </div>
+                  <div className="space-y-2 pl-4">
+                    {categoryLogs.map((log) => (
+                      <div key={log.id} className="flex items-start gap-4 p-3 border rounded-lg hover:bg-muted/30 transition-colors">
+                        <div className="text-xl">{getItemTypeIcon(log.itemType)}</div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge className={getActionColor(log.action)}>
+                              {log.action}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              {log.itemCode && `Codice: ${log.itemCode}`}
+                            </span>
+                          </div>
+                          
+                          <p className="text-sm font-medium text-foreground mb-1">
+                            {log.details}
+                          </p>
+                          
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatTimestamp(log.timestamp)}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <User className="w-3 h-3" />
+                              {log.operator}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Activity className="w-3 h-3" />
+                              {log.itemType}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </CardContent>
