@@ -49,19 +49,31 @@ export function MainInterface({ onLogout, operator }: MainInterfaceProps) {
     const itemType = determineItemType(code);
     
     if (itemType === 'shelf') {
+      // Reset archiving state and start with new shelf
       setArchivingState({
         currentShelf: code,
         step: 'box'
       });
-    } else if (itemType === 'box' && archivingState.currentShelf) {
+    } else if (itemType === 'box') {
+      if (!archivingState.currentShelf) {
+        // Need to scan shelf first
+        scanCode(code, archivingState.currentShelf, archivingState.currentBox);
+        return;
+      }
+      // Change to new box, keep same shelf
       setArchivingState({
-        ...archivingState,
+        currentShelf: archivingState.currentShelf,
         currentBox: code,
         step: 'sample'
       });
-    } else if (itemType === 'sample' && archivingState.currentShelf && archivingState.currentBox) {
-      // Reset to start after successful sample archiving
-      setArchivingState({ step: 'shelf' });
+    } else if (itemType === 'sample') {
+      if (!archivingState.currentShelf || !archivingState.currentBox) {
+        // Need to scan shelf and box first
+        scanCode(code, archivingState.currentShelf, archivingState.currentBox);
+        return;
+      }
+      // Keep archiving state for multiple samples in same box
+      // Don't reset - allow multiple samples to be scanned consecutively
     }
     
     scanCode(code, archivingState.currentShelf, archivingState.currentBox);

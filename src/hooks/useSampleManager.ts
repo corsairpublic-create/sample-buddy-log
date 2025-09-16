@@ -64,6 +64,15 @@ export function useSampleManager() {
       itemCode
     };
 
+    // Also save to Electron audit log first
+    if (window.electronAPI) {
+      try {
+        await window.electronAPI.dbPushLog(logEntry);
+      } catch (error) {
+        console.error('Failed to write audit log:', error);
+      }
+    }
+
     setState(prev => {
       const newState = {
         ...prev,
@@ -72,15 +81,6 @@ export function useSampleManager() {
       saveState(newState);
       return newState;
     });
-
-    // Also save to Electron audit log
-    if (window.electronAPI) {
-      try {
-        await window.electronAPI.dbPushLog(logEntry);
-      } catch (error) {
-        console.error('Failed to write audit log:', error);
-      }
-    }
   }, [state.currentOperator, saveState]);
 
   const login = useCallback((operator: string) => {
@@ -220,6 +220,7 @@ export function useSampleManager() {
           
           sampleBox.samples.push(sample);
           addLog('CAMPIONE_ARCHIVIATO', `Campione archiviato: ${formattedCode} in cassetta ${currentBox} di scaffale ${currentShelf}`, 'sample', formattedCode);
+          toast.success(`Campione archiviato: ${formattedCode}`);
           break;
       }
       
